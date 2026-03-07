@@ -1,58 +1,63 @@
-from flask import Flask, request, jsonify
-import numpy as np
-import cv2
-import pytesseract
+code from flask import Flask, request, jsonify import numpy as np import cv2
+app = Flask(name)
+DIGITS_LOOKUP = { (1,1,1,0,1,1,1):0, (0,0,1,0,0,1,0):1, (1,0,1,1,1,0,1):2, (1,0,1,1,0,1,1):3, (0,1,1,1,0,1,0):4, (1,1,0,1,0,1,1):5, (1,1,0,1,1,1,1):6, (1,0,1,0,0,1,0):7, (1,1,1,1,1,1,1):8, (1,1,1,1,0,1,1):9 }
+def detect_weight(image):
+gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-app = Flask(__name__)
+thresh = cv2.threshold(gray,0,255,
+cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)[1]
 
-def read_weight(image):
+contours,_ = cv2.findContours(
+    thresh, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+digits = []
 
-    blur = cv2.GaussianBlur(gray,(5,5),0)
+for c in contours:
 
-    thresh = cv2.adaptiveThreshold(
-        blur,
-        255,
-        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-        cv2.THRESH_BINARY,
-        11,
-        2
-    )
+    x,y,w,h = cv2.boundingRect(c)
 
-    text = pytesseract.image_to_string(
-        thresh,
-        config="--psm 7 -c tessedit_char_whitelist=0123456789."
-    )
+    if h < 30:
+        continue
 
-    weight = ''.join(c for c in text if c.isdigit() or c=='.')
+    roi = thresh[y:y+h, x:x+w]
 
-    return weight
+    segments = [
+    roi[0:int(h*0.2), :],
+    roi[int(h*0.2):int(h*0.4), 0:int(w*0.3)],
+    roi[int(h*0.2):int(h*0.4), int(w*0.7):w],
+    roi[int(h*0.4):int(h*0.6), :],
+    roi[int(h*0.6):int(h*0.8), 0:int(w*0.3)],
+    roi[int(h*0.6):int(h*0.8), int(w*0.7):w],
+    roi[int(h*0.8):h, :]
+    ]
 
+    on = []
 
-@app.route("/")
-def home():
-    return "ESP32 OCR SERVER RUNNING"
+    for seg in segments:
+        area = cv2.countNonZero(seg)
+        if area > (seg.size * 0.3):
+            on.append(1)
+        else:
+            on.append(0)
 
+    digit = DIGITS_LOOKUP.get(tuple(on),None)
 
-@app.route("/detect", methods=["POST"])
-def detect():
+    if digit is not None:
+        digits.append(str(digit))
 
-    img_bytes = request.data
+return "".join(digits)
+@app.route("/") def home(): return "Weight detection server running"
+@app.route("/detect", methods=["POST"]) def detect():
+img_bytes = request.data
 
-    if not img_bytes:
-        return jsonify({"weight":"0"})
+if not img_bytes:
+    return jsonify({"weight":"0"})
 
-    npimg = np.frombuffer(img_bytes, np.uint8)
+npimg = np.frombuffer(img_bytes, np.uint8)
 
-    img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
-    weight = read_weight(img)
+weight = detect_weight(img)
 
-    print("Detected weight:", weight)
-
-    return jsonify({"weight":weight})
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+return jsonify({"weight":weight})
+if name == "main": app.run(host="0.0.0.0", port=10000)
