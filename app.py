@@ -1,55 +1,47 @@
 from flask import Flask, request, jsonify
-import numpy as np
-import cv2
-import pytesseract
+import requests
+import base64
+import re
 
 app = Flask(__name__)
+
+API_KEY = "AIzaSyCmlIsG6Y-BL35u-K-fEzdZq_LZJxN7rwY"
 
 @app.route("/")
 def home():
     return "ESP32 OCR Server Running"
 
-
 @app.route("/detect", methods=["POST"])
 def detect():
 
-    img_bytes = request.data
+    image = request.data
+    img_base64 = base64.b64encode(image).decode()
 
-    if not img_bytes:
-        return jsonify({"weight":"0"})
+    url = f"https://vision.googleapis.com/v1/images:annotate?key={API_KEY}"
 
-    npimg = np.frombuffer(img_bytes, np.uint8)
+    payload = {
+        "requests": [
+            {
+                "image": {"content": img_base64},
+                "features": [{"type": "TEXT_DETECTION"}]
+            }
+        ]
+    }
 
-    img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
+    r = requests.post(url, json=payload)
+    result = r.json()
 
-    if img is None:
-        return jsonify({"weight":"0"})
+    text = ""
 
-    h, w, _ = img.shape
+    try:
+        text = result["responses"][0]["fullTextAnnotation"]["text"]
+    except:
+        pass
 
-    # Crop display area
-    img = img[int(h*0.35):int(h*0.55), int(w*0.25):int(w*0.75)]
+    weight = 0
+    match = re.search(r"\d+\.\d+|\d+", text)
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    if match:
+        weight = match.group()
 
-    blur = cv2.GaussianBlur(gray,(5,5),0)
-
-    thresh = cv2.threshold(
-        blur,
-        0,
-        255,
-        cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
-    )[1]
-
-    text = pytesseract.image_to_string(
-        thresh,
-        config="--psm 7 -c tessedit_char_whitelist=0123456789."
-    )
-
-    text = text.strip()
-
-    return jsonify({"weight":text})
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    return jsonify({"weight": weight})
