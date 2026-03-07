@@ -7,16 +7,12 @@ app = Flask(__name__)
 
 def read_weight(image):
 
-    # convert to grayscale (works for any display color)
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-    # increase contrast
     gray = cv2.equalizeHist(gray)
 
-    # blur to remove noise
     blur = cv2.GaussianBlur(gray,(5,5),0)
 
-    # adaptive threshold works for different lighting/colors
     thresh = cv2.adaptiveThreshold(
         blur,
         255,
@@ -26,14 +22,12 @@ def read_weight(image):
         2
     )
 
-    # OCR tuned for numbers only
     text = pytesseract.image_to_string(
         thresh,
         config="--psm 7 -c tessedit_char_whitelist=0123456789."
     )
 
-    # extract only numbers and decimal
-    weight = ''.join(c for c in text if c.isdigit() or c == '.')
+    weight = ''.join(c for c in text if c.isdigit() or c=='.')
 
     return weight
 
@@ -41,12 +35,10 @@ def read_weight(image):
 @app.route("/detect", methods=["POST"])
 def detect():
 
-    if "image" not in request.files:
-        return jsonify({"error":"no image received"})
+    img_bytes = request.data
 
-    file = request.files["image"]
-
-    img_bytes = file.read()
+    if len(img_bytes) == 0:
+        return jsonify({"weight":"0"})
 
     npimg = np.frombuffer(img_bytes, np.uint8)
 
@@ -54,9 +46,14 @@ def detect():
 
     weight = read_weight(img)
 
-    print("Detected Weight:", weight)
+    print("Detected weight:", weight)
 
     return jsonify({"weight": weight})
+
+
+@app.route("/")
+def home():
+    return "OCR Server Running"
 
 
 if __name__ == "__main__":
