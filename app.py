@@ -8,7 +8,6 @@ app = Flask(__name__)
 def read_weight(image):
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-    gray = cv2.equalizeHist(gray)
 
     blur = cv2.GaussianBlur(gray,(5,5),0)
 
@@ -33,7 +32,7 @@ def read_weight(image):
 
 @app.route("/")
 def home():
-    return "ESP32 OCR Server Running"
+    return "ESP32 OCR SERVER RUNNING"
 
 
 @app.route("/detect", methods=["POST"])
@@ -41,7 +40,7 @@ def detect():
 
     img_bytes = request.data
 
-    if len(img_bytes) == 0:
+    if not img_bytes:
         return jsonify({"weight":"0"})
 
     npimg = np.frombuffer(img_bytes, np.uint8)
