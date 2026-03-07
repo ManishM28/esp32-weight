@@ -1,12 +1,13 @@
 from flask import Flask, request, jsonify
 import numpy as np
 import cv2
+import pytesseract
 
 app = Flask(__name__)
 
 @app.route("/")
 def home():
-    return "ESP32 Weight Detection Server Running"
+    return "ESP32 OCR Server Running"
 
 
 @app.route("/detect", methods=["POST"])
@@ -18,6 +19,7 @@ def detect():
         return jsonify({"weight":"0"})
 
     npimg = np.frombuffer(img_bytes, np.uint8)
+
     img = cv2.imdecode(npimg, cv2.IMREAD_COLOR)
 
     if img is None:
@@ -25,7 +27,7 @@ def detect():
 
     h, w, _ = img.shape
 
-    # Crop only display area
+    # Crop display area
     img = img[int(h*0.35):int(h*0.55), int(w*0.25):int(w*0.75)]
 
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -39,38 +41,14 @@ def detect():
         cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
     )[1]
 
-    contours,_ = cv2.findContours(
+    text = pytesseract.image_to_string(
         thresh,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
+        config="--psm 7 -c tessedit_char_whitelist=0123456789."
     )
 
-    digits = []
+    text = text.strip()
 
-    for c in contours:
-
-        x,y,w,h = cv2.boundingRect(c)
-
-        if h > 25 and w > 10:
-
-            roi = thresh[y:y+h, x:x+w]
-
-            white = cv2.countNonZero(roi)
-
-            if white > 50:
-                digits.append((x,"1"))
-
-    digits = sorted(digits,key=lambda x:x[0])
-
-    weight = ""
-
-    for d in digits:
-        weight += d[1]
-
-    if weight == "":
-        weight = "0"
-
-    return jsonify({"weight":weight})
+    return jsonify({"weight":text})
 
 
 if __name__ == "__main__":
