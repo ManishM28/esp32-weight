@@ -8,7 +8,6 @@ app = Flask(__name__)
 def read_weight(image):
 
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-
     gray = cv2.equalizeHist(gray)
 
     blur = cv2.GaussianBlur(gray,(5,5),0)
@@ -32,6 +31,11 @@ def read_weight(image):
     return weight
 
 
+@app.route("/")
+def home():
+    return "ESP32 OCR Server Running"
+
+
 @app.route("/detect", methods=["POST"])
 def detect():
 
@@ -48,12 +52,7 @@ def detect():
 
     print("Detected weight:", weight)
 
-    return jsonify({"weight": weight})
-
-
-@app.route("/")
-def home():
-    return "OCR Server Running"
+    return jsonify({"weight":weight})
 
 
 if __name__ == "__main__":
