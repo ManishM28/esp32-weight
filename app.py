@@ -5,7 +5,7 @@ import re
 
 app = Flask(__name__)
 
-API_KEY = "AIzaSyCmlIsG6Y-BL35u-K-fEzdZq_LZJxN7rwY"
+API_KEY = ""
 
 @app.route("/")
 def home():
